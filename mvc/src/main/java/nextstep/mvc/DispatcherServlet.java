@@ -1,16 +1,11 @@
 package nextstep.mvc;
 
-import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import nextstep.mvc.controller.asis.Controller;
-import nextstep.mvc.controller.tobe.HandlerExecution;
-import nextstep.mvc.view.JspView;
+import nextstep.mvc.controller.tobe.HandlerAdapterRegister;
+import nextstep.mvc.controller.tobe.HandlerMappingRegister;
 import nextstep.mvc.view.ModelAndView;
 import nextstep.mvc.view.View;
 import org.slf4j.Logger;
@@ -21,19 +16,21 @@ public class DispatcherServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
     private static final Logger LOG = LoggerFactory.getLogger(DispatcherServlet.class);
 
-    private final List<HandlerMapping> handlerMappings;
+    private final HandlerMappingRegister handlerMappingRegister;
+    private final HandlerAdapterRegister handlerAdapterRegister;
 
     public DispatcherServlet() {
-        this.handlerMappings = new ArrayList<>();
+        this.handlerMappingRegister = new HandlerMappingRegister();
+        this.handlerAdapterRegister = new HandlerAdapterRegister();
     }
 
     @Override
     public void init() {
-        handlerMappings.forEach(HandlerMapping::initialize);
+        handlerMappingRegister.init();
     }
 
     public void addHandlerMapping(HandlerMapping handlerMapping) {
-        handlerMappings.add(handlerMapping);
+        handlerMappingRegister.addHandlerMapping(handlerMapping);
     }
 
     @Override
@@ -41,38 +38,23 @@ public class DispatcherServlet extends HttpServlet {
         LOG.debug("Method : {}, Request URI : {}", request.getMethod(), request.getRequestURI());
 
         try {
-            final Object handler = getHandler(request);
-            if (handler instanceof Controller) {
-                final Controller controller = (Controller) handler;
-                final String viewName = controller.execute(request, response);
-                move(viewName, request, response);
-                return;
-            }
-            final HandlerExecution handlerExecution = (HandlerExecution) handler;
-            final ModelAndView modelAndView = handlerExecution.handle(request, response);
-            final View view = modelAndView.getView();
-            view.render(modelAndView.getModel(), request, response);
+            final Object handler = handlerMappingRegister.getHandler(request);
+            final HandlerAdapter handlerAdapter = handlerAdapterRegister.getHandlerAdapter(handler);
+            final ModelAndView modelAndView = handlerAdapter.handle(request, response, handler);
+            render(modelAndView, request, response);
         } catch (Throwable e) {
             LOG.error("Exception : {}", e.getMessage(), e);
             throw new ServletException(e.getMessage());
         }
     }
 
-    private Object getHandler(HttpServletRequest request) {
-        return handlerMappings.stream()
-                .map(handlerMapping -> handlerMapping.getHandler(request))
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElseThrow();
+    private void render(ModelAndView modelAndView, HttpServletRequest request, HttpServletResponse response)
+            throws Exception {
+        final View view = modelAndView.getView();
+        view.render(modelAndView.getModel(), request, response);
     }
 
-    private void move(String viewName, HttpServletRequest request, HttpServletResponse response) throws Exception {
-        if (viewName.startsWith(JspView.REDIRECT_PREFIX)) {
-            response.sendRedirect(viewName.substring(JspView.REDIRECT_PREFIX.length()));
-            return;
-        }
-
-        final RequestDispatcher requestDispatcher = request.getRequestDispatcher(viewName);
-        requestDispatcher.forward(request, response);
+    public void addHandlerAdapter(HandlerAdapter handlerAdapter) {
+        handlerAdapterRegister.addHandlerAdapter(handlerAdapter);
     }
 }
