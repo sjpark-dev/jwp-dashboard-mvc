@@ -6,47 +6,50 @@ import static org.mockito.Mockito.when;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import nextstep.mvc.HandlerAdapter;
+import nextstep.mvc.view.JsonView;
 import nextstep.mvc.view.ModelAndView;
+import nextstep.mvc.view.RedirectView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import samples.ManualController;
 
-class AnnotationHandlerMappingTest {
+class ViewTest {
 
+    private HandlerAdapter controllerAdapter;
     private AnnotationHandlerMapping handlerMapping;
 
     @BeforeEach
     void setUp() {
+        controllerAdapter = new ControllerAdapter();
         handlerMapping = new AnnotationHandlerMapping("samples");
         handlerMapping.initialize();
     }
 
     @Test
-    void get() throws Exception {
+    void jsonView() throws Exception {
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
 
-        when(request.getAttribute("id")).thenReturn("gugu");
-        when(request.getRequestURI()).thenReturn("/get-test");
+        when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("GET");
 
         final HandlerExecution handlerExecution = (HandlerExecution) handlerMapping.getHandler(request);
         final ModelAndView modelAndView = (ModelAndView) handlerExecution.handle(request, response);
 
-        assertThat(modelAndView.getObject("id")).isEqualTo("gugu");
+        assertThat(modelAndView.getView() instanceof JsonView).isTrue();
     }
 
     @Test
-    void post() throws Exception {
+    void redirectView() throws Exception {
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
 
-        when(request.getAttribute("id")).thenReturn("gugu");
-        when(request.getRequestURI()).thenReturn("/post-test");
-        when(request.getMethod()).thenReturn("POST");
+        when(request.getRequestURI()).thenReturn("/redirect-test");
+        when(request.getMethod()).thenReturn("GET");
 
-        final HandlerExecution handlerExecution = (HandlerExecution) handlerMapping.getHandler(request);
-        final ModelAndView modelAndView = (ModelAndView) handlerExecution.handle(request, response);
+        final ModelAndView modelAndView = controllerAdapter.handle(request, response, new ManualController());
 
-        assertThat(modelAndView.getObject("id")).isEqualTo("gugu");
+        assertThat(modelAndView.getView() instanceof RedirectView).isTrue();
     }
 }
